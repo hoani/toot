@@ -4,15 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/faiface/beep"
 	"github.com/gordonklaus/portaudio"
-)
-
-var (
-	initialized bool
-	initlock    sync.Mutex
 )
 
 type Microphone interface {
@@ -22,46 +18,80 @@ type Microphone interface {
 	Format() beep.Format
 }
 
-// Initialize initializes the mic library. We cannot instantiate a microphone without this.
-// Returns a close function which must be called on exit, otherwise your program will leak resources.
-func initialize() (close func() error, err error) {
-	initlock.Lock()
-	defer initlock.Unlock()
-	if initialized {
-		return nil, errors.New("mic already initialized")
-	}
-	if err := portaudio.Initialize(); err != nil {
-		return nil, fmt.Errorf("mic failed to initialize portaudio: %w", err)
-	}
-	initialized = true
-	return terminate, nil
-}
-
-func terminate() error {
-	initlock.Lock()
-	defer initlock.Unlock()
-	initialized = false
-	return portaudio.Terminate()
+type InputDevice struct {
+	Name   string
+	Stereo bool
 }
 
 type mic struct {
-	stream *portaudio.Stream
-	ctx    context.Context
-	cancel context.CancelFunc
-	buffer chan float64
-	wg     sync.WaitGroup
-	err    error
-	format beep.Format
+	stream     *portaudio.Stream
+	ctx        context.Context
+	cancel     context.CancelFunc
+	buffer     chan float64
+	wg         sync.WaitGroup
+	err        error
+	device     *portaudio.DeviceInfo
+	devicelock sync.Mutex
 }
 
-func NewMicrophone() (Microphone, error) {
-	initlock.Lock()
-	defer initlock.Unlock()
-	if !initialized {
-		return nil, errors.New("mic library must be initialized with microphone.Initialize")
+func GetInputDevices() ([]InputDevice, error) {
+	if err := portaudio.Initialize(); err != nil {
+		return nil, err
 	}
+	defer portaudio.Terminate()
+
+	devices, err := portaudio.Devices()
+	if err != nil {
+		return nil, err
+	}
+
+	details := make([]InputDevice, 0)
+	for _, device := range devices {
+		if device.MaxInputChannels > 0 {
+			details = append(details, InputDevice{
+				Name:   device.Name,
+				Stereo: device.MaxInputChannels > 1,
+			})
+		}
+	}
+	return details, nil
+}
+
+func NewDefaultMicrophone() (Microphone, error) {
+	return NewMicrophone("")
+}
+
+func NewMicrophone(name string) (Microphone, error) {
+	if err := portaudio.Initialize(); err != nil {
+		return nil, err
+	}
+
+	var device *portaudio.DeviceInfo
+	if name == "" {
+		var err error
+		if device, err = portaudio.DefaultInputDevice(); err != nil {
+			return nil, err
+		}
+	} else {
+		devices, err := portaudio.Devices()
+		if err != nil {
+			return nil, err
+		}
+		for _, d := range devices {
+			if strings.Contains(d.Name, name) && d.MaxInputChannels > 0 {
+				device = d
+			}
+		}
+	}
+
+	if device == nil {
+		return nil, fmt.Errorf("could not find input device %s", name)
+	}
+
 	return &mic{
+		ctx:    context.Background(),
 		buffer: make(chan float64),
+		device: device,
 	}, nil
 }
 
@@ -87,21 +117,14 @@ func (m *mic) Start(ctx context.Context) error {
 	m.ctx, m.cancel = context.WithCancel(ctx)
 
 	// get the default input device
-	device, _ := portaudio.DefaultInputDevice()
 
 	// set the sample rate and buffer size
 	bufferSize := 512
 
-	fmt.Printf("%v", device)
-
-	m.format = beep.Format{
-		SampleRate:  beep.SampleRate(device.DefaultSampleRate),
-		NumChannels: 1,
-		Precision:   3,
-	}
+	fmt.Printf("%v", m.device)
 
 	var err error
-	m.stream, err = portaudio.OpenDefaultStream(1, 0, device.DefaultSampleRate, bufferSize,
+	m.stream, err = portaudio.OpenDefaultStream(1, 0, m.device.DefaultSampleRate, bufferSize,
 		func(in []float32) {
 			for _, input := range in {
 				select {
@@ -131,14 +154,32 @@ func (m *mic) Start(ctx context.Context) error {
 }
 
 func (m *mic) Close() error {
+	m.devicelock.Lock()
+	defer m.devicelock.Unlock()
+
+	if m.device == nil {
+		return nil // Already closed.
+	}
+
+	if err := portaudio.Terminate(); err != nil {
+		m.err = err
+	}
+	m.device = nil
+
+	// Cancel streaming.
 	if m.cancel == nil {
 		return errors.New("not started")
 	}
 	m.cancel()
 	m.wg.Wait()
+
 	return m.err
 }
 
 func (m *mic) Format() beep.Format {
-	return m.format
+	return beep.Format{
+		SampleRate:  beep.SampleRate(m.device.DefaultSampleRate),
+		NumChannels: 1,
+		Precision:   3,
+	}
 }

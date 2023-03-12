@@ -6,7 +6,6 @@ import (
 	"os"
 
 	"github.com/faiface/beep/wav"
-	"github.com/gordonklaus/portaudio"
 	"github.com/hoani/toot"
 
 	openai "github.com/sashabaranov/go-openai"
@@ -14,28 +13,18 @@ import (
 
 func main() {
 	// initialize toot
-	terminate, err := toot.Initialize()
+
+	devices, err := toot.GetInputDevices()
 	if err != nil {
 		panic(err)
 	}
-	defer terminate()
+	fmt.Printf("candidates: %#v\n", devices)
 
-	devices, _ := portaudio.Devices()
-	for i, d := range devices {
-		fmt.Printf("%d: %#v\n", i, d)
-	}
-	os.Exit(0)
-
-	m, err := toot.NewMicrophone()
+	m, err := toot.NewDefaultMicrophone()
 	if err != nil {
 		panic(err)
 	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	if err := m.Start(ctx); err != nil {
-		panic(err)
-	}
+	defer m.Close()
 
 	a := toot.NewAnalyzer(m, int(m.Format().SampleRate))
 
@@ -47,6 +36,12 @@ func main() {
 			panic(err)
 		}
 	}()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if err := m.Start(ctx); err != nil {
+		panic(err)
+	}
 
 	fmt.Print("\nPress [ENTER] to finish recording! ")
 	fmt.Scanln()

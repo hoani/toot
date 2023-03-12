@@ -1,3 +1,5 @@
 ## TODO:
 
-[] Strategy for initializing portaudio
+
+[] Add tests for microphone
+[] Formalize analyzer
