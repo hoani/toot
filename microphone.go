@@ -124,7 +124,16 @@ func (m *mic) Start(ctx context.Context) error {
 	fmt.Printf("%v", m.device)
 
 	var err error
-	m.stream, err = portaudio.OpenDefaultStream(1, 0, m.device.DefaultSampleRate, bufferSize,
+	m.stream, err = portaudio.OpenStream(
+		portaudio.StreamParameters{
+			Input: portaudio.StreamDeviceParameters{
+				Device:   m.device,
+				Channels: 1,
+				Latency:  m.device.DefaultLowInputLatency,
+			},
+			SampleRate:      m.device.DefaultSampleRate,
+			FramesPerBuffer: bufferSize,
+		},
 		func(in []float32) {
 			for _, input := range in {
 				select {
@@ -133,7 +142,8 @@ func (m *mic) Start(ctx context.Context) error {
 					return
 				}
 			}
-		})
+		},
+	)
 	if err != nil {
 		return err
 	}
