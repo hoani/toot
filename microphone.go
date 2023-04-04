@@ -109,6 +109,10 @@ func (m *mic) Stream(samples [][2]float64) (int, bool) {
 	return len(samples), true
 }
 
+func (m *mic) DeviceInfo() portaudio.DeviceInfo {
+	return *m.device
+}
+
 func (m *mic) Err() error {
 	return m.err
 }
@@ -120,8 +124,6 @@ func (m *mic) Start(ctx context.Context) error {
 
 	// set the sample rate and buffer size
 	bufferSize := 512
-
-	fmt.Printf("%v", m.device)
 
 	var err error
 	m.stream, err = portaudio.OpenStream(
