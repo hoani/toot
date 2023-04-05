@@ -16,6 +16,7 @@ type Microphone interface {
 	Start(ctx context.Context) error
 	Close() error
 	Format() beep.Format
+	DeviceInfo() portaudio.DeviceInfo
 }
 
 type InputDevice struct {
