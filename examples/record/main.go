@@ -46,8 +46,8 @@ func main() {
 	m.Close()
 
 	fmt.Print("computing power series...\n")
-	freqs, powerSeries := a.GetPowerSpectrum()
+	spectrum := a.GetPowerSpectrum()
 	fmt.Print("plotting...\n")
-	Plot(freqs, powerSeries)
+	Plot(spectrum.Frequencies(), spectrum.Values())
 
 }

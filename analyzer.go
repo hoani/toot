@@ -16,6 +16,13 @@ type analyzer struct {
 	bufferSize int
 }
 
+type SpectrumSample struct {
+	Frequency float64
+	Value     float64
+}
+
+type Spectra []SpectrumSample
+
 func NewAnalyzer(stream beep.Streamer, sampleRate int, bufferSize int) *analyzer {
 	return &analyzer{
 		stream:     stream,
@@ -25,22 +32,25 @@ func NewAnalyzer(stream beep.Streamer, sampleRate int, bufferSize int) *analyzer
 	}
 }
 
-func (a *analyzer) GetPowerSpectrum() ([]float64, []float64) {
+func (a *analyzer) GetPowerSpectrum() Spectra {
 	b := a.Buffer()
 	if len(b) == 0 {
-		return nil, nil
+		return nil
 	}
 
 	windowed := hammingWindow(b)
 	coeff := dft(windowed)
 	power := powerSpectrum(coeff)
 
-	freq := make([]float64, 0, len(power))
-	for i := range coeff {
-		freq = append(freq, float64(i)*float64(a.sampleRate)/float64(len(b)))
+	result := make([]SpectrumSample, len(power))
+	for i := range power {
+		result[i] = SpectrumSample{
+			Value:     power[i],
+			Frequency: float64(i) * float64(a.sampleRate) / float64(len(b)),
+		}
 	}
 
-	return freq, power
+	return result
 }
 
 func (a *analyzer) Stream(samples [][2]float64) (int, bool) {
@@ -70,6 +80,22 @@ func (a *analyzer) Buffer() []float64 {
 	}
 
 	return buffer
+}
+
+func (s Spectra) Frequencies() []float64 {
+	result := make([]float64, 0, len(s))
+	for _, v := range s {
+		result = append(result, v.Frequency)
+	}
+	return result
+}
+
+func (s Spectra) Values() []float64 {
+	result := make([]float64, 0, len(s))
+	for _, v := range s {
+		result = append(result, v.Value)
+	}
+	return result
 }
 
 func hammingWindow(signal []float64) []float64 {
