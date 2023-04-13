@@ -26,7 +26,7 @@ func main() {
 	}
 	defer m.Close()
 
-	a := toot.NewAnalyzer(m, int(m.Format().SampleRate))
+	a := toot.NewAnalyzer(m, int(m.Format().SampleRate), 1e6)
 
 	f, err := os.Create("test.wav")
 
@@ -48,7 +48,7 @@ func main() {
 	m.Close()
 
 	fmt.Print("computing power series...\n")
-	freqs, powerSeries := a.GetF0()
+	freqs, powerSeries := a.GetPowerSpectrum()
 	fmt.Print("plotting...\n")
 	Plot(freqs, powerSeries)
 	fmt.Print("transcribing...\n")

@@ -1,6 +1,7 @@
 package toot
 
 import (
+	"container/list"
 	"fmt"
 	"math"
 	"math/cmplx"
@@ -11,22 +12,24 @@ import (
 
 type analyzer struct {
 	stream     beep.Streamer
-	buffer     []float64
+	buffer     *list.List
 	sampleRate int
+	bufferSize int
 }
 
-func NewAnalyzer(stream beep.Streamer, sampleRate int) *analyzer {
+func NewAnalyzer(stream beep.Streamer, sampleRate int, bufferSize int) *analyzer {
 	return &analyzer{
 		stream:     stream,
-		buffer:     make([]float64, 0, 1028),
+		buffer:     list.New(),
 		sampleRate: sampleRate,
+		bufferSize: bufferSize,
 	}
 }
 
-func (a *analyzer) GetF0() ([]float64, []float64) {
-	fmt.Printf("analyzing %d samples.\n", len(a.buffer))
-	fmt.Printf("windowing...")
-	windowed := hammingWindow(a.buffer)
+func (a *analyzer) GetPowerSpectrum() ([]float64, []float64) {
+	b := a.Buffer()
+
+	windowed := hammingWindow(b)
 	fmt.Printf("DONE\n")
 	fmt.Printf("dft...")
 	coeff := dft(windowed)
@@ -37,7 +40,7 @@ func (a *analyzer) GetF0() ([]float64, []float64) {
 
 	freq := make([]float64, 0, len(power))
 	for i := range coeff {
-		freq = append(freq, float64(i)*float64(a.sampleRate)/float64(len(a.buffer)))
+		freq = append(freq, float64(i)*float64(a.sampleRate)/float64(len(b)))
 	}
 
 	return freq, power
@@ -48,7 +51,10 @@ func (a *analyzer) Stream(samples [][2]float64) (int, bool) {
 	n, ok := a.stream.Stream(samples)
 	if ok {
 		for i := 0; i < n; i++ {
-			a.buffer = append(a.buffer, samples[i][0])
+			a.buffer.PushBack(samples[i][0])
+		}
+		for a.buffer.Len() > a.bufferSize {
+			a.buffer.Remove(a.buffer.Front())
 		}
 	}
 	return n, ok
@@ -56,6 +62,17 @@ func (a *analyzer) Stream(samples [][2]float64) (int, bool) {
 
 func (a *analyzer) Err() error {
 	return a.stream.Err()
+}
+
+func (a *analyzer) Buffer() []float64 {
+	buffer := make([]float64, 0, a.buffer.Len())
+	item := a.buffer.Front()
+	for item != nil {
+		buffer = append(buffer, item.Value.(float64))
+		item = item.Next()
+	}
+
+	return buffer
 }
 
 func hammingWindow(signal []float64) []float64 {
