@@ -7,8 +7,6 @@ import (
 
 	"github.com/faiface/beep/wav"
 	"github.com/hoani/toot"
-
-	openai "github.com/sashabaranov/go-openai"
 )
 
 func main() {
@@ -26,7 +24,7 @@ func main() {
 	}
 	defer m.Close()
 
-	a := toot.NewAnalyzer(m, int(m.Format().SampleRate), 1e6)
+	a := toot.NewAnalyzer(m, int(m.Format().SampleRate), int(m.Format().SampleRate))
 
 	f, err := os.Create("test.wav")
 
@@ -51,18 +49,5 @@ func main() {
 	freqs, powerSeries := a.GetPowerSpectrum()
 	fmt.Print("plotting...\n")
 	Plot(freqs, powerSeries)
-	fmt.Print("transcribing...\n")
-	c := openai.NewClient(os.Getenv("OPENAI_KEY"))
-
-	req := openai.AudioRequest{
-		Model:    openai.Whisper1,
-		FilePath: "./test.wav",
-	}
-	resp, err := c.CreateTranscription(ctx, req)
-	if err != nil {
-		fmt.Printf("Transcription error: %v\n", err)
-		return
-	}
-	fmt.Println(resp.Text)
 
 }

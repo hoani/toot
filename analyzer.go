@@ -2,7 +2,6 @@ package toot
 
 import (
 	"container/list"
-	"fmt"
 	"math"
 	"math/cmplx"
 
@@ -28,15 +27,13 @@ func NewAnalyzer(stream beep.Streamer, sampleRate int, bufferSize int) *analyzer
 
 func (a *analyzer) GetPowerSpectrum() ([]float64, []float64) {
 	b := a.Buffer()
+	if len(b) == 0 {
+		return nil, nil
+	}
 
 	windowed := hammingWindow(b)
-	fmt.Printf("DONE\n")
-	fmt.Printf("dft...")
 	coeff := dft(windowed)
-	fmt.Printf("DONE\n")
-	fmt.Printf("power spectrum...")
 	power := powerSpectrum(coeff)
-	fmt.Printf("DONE\n")
 
 	freq := make([]float64, 0, len(power))
 	for i := range coeff {
