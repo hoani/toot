@@ -174,17 +174,17 @@ func (m *mic) Close() error {
 		return nil // Already closed.
 	}
 
-	if err := portaudio.Terminate(); err != nil {
-		m.err = err
-	}
-	m.device = nil
-
 	// Cancel streaming.
 	if m.cancel == nil {
 		return errors.New("not started")
 	}
 	m.cancel()
 	m.wg.Wait()
+
+	if err := portaudio.Terminate(); err != nil {
+		m.err = err
+	}
+	m.device = nil
 
 	return m.err
 }
