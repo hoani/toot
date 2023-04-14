@@ -47,7 +47,7 @@ func runAudio(p *tea.Program) error {
 
 	go m.Start(context.Background())
 	for {
-		time.Sleep(time.Millisecond * 1)
+		time.Sleep(time.Millisecond * 50)
 		s := a.GetPowerSpectrum()
 		if s == nil {
 			continue

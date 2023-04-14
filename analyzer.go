@@ -12,6 +12,7 @@ import (
 type analyzer struct {
 	stream     beep.Streamer
 	buffer     *list.List
+	bufferLen  int
 	sampleRate int
 	bufferSize int
 }
@@ -57,10 +58,11 @@ func (a *analyzer) Stream(samples [][2]float64) (int, bool) {
 
 	n, ok := a.stream.Stream(samples)
 	if ok {
-		for i := 0; i < n; i++ {
-			a.buffer.PushBack(samples[i][0])
-		}
-		for a.buffer.Len() > a.bufferSize {
+		a.buffer.PushBack(samples[:n])
+		a.bufferLen += n
+		for a.bufferLen > a.bufferSize {
+			frontLen := len(a.buffer.Front().Value.([][2]float64))
+			a.bufferLen -= frontLen
 			a.buffer.Remove(a.buffer.Front())
 		}
 	}
@@ -71,11 +73,11 @@ func (a *analyzer) Err() error {
 	return a.stream.Err()
 }
 
-func (a *analyzer) Buffer() []float64 {
-	buffer := make([]float64, 0, a.buffer.Len())
+func (a *analyzer) Buffer() [][2]float64 {
+	buffer := make([][2]float64, 0, a.buffer.Len())
 	item := a.buffer.Front()
 	for item != nil {
-		buffer = append(buffer, item.Value.(float64))
+		buffer = append(buffer, item.Value.([][2]float64)...)
 		item = item.Next()
 	}
 
@@ -98,13 +100,13 @@ func (s Spectra) Values() []float64 {
 	return result
 }
 
-func hammingWindow(signal []float64) []float64 {
+func hammingWindow(signal [][2]float64) []float64 {
 	window := make([]float64, len(signal))
 	alpha := 0.54
 	beta := 1 - alpha
 	for i := 0; i < len(signal); i++ {
 		window[i] = alpha - beta*math.Cos(2*math.Pi*float64(i)/(float64(len(signal))-1))
-		window[i] *= signal[i]
+		window[i] *= signal[i][0]
 	}
 	return window
 }
