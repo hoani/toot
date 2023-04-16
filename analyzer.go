@@ -74,7 +74,7 @@ func (a *analyzer) Err() error {
 }
 
 func (a *analyzer) Buffer() [][2]float64 {
-	buffer := make([][2]float64, 0, a.buffer.Len())
+	buffer := make([][2]float64, 0, a.bufferLen)
 	item := a.buffer.Front()
 	for item != nil {
 		buffer = append(buffer, item.Value.([][2]float64)...)
