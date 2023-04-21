@@ -17,6 +17,7 @@ type Microphone interface {
 	Close() error
 	Format() beep.Format
 	DeviceInfo() portaudio.DeviceInfo
+	SetSampleRate(rate beep.SampleRate)
 }
 
 type InputDevice struct {
@@ -33,6 +34,7 @@ type mic struct {
 	err        error
 	device     *portaudio.DeviceInfo
 	devicelock sync.Mutex
+	sampleRate beep.SampleRate
 }
 
 func GetInputDevices() ([]InputDevice, error) {
@@ -89,11 +91,14 @@ func NewMicrophone(name string) (Microphone, error) {
 		return nil, fmt.Errorf("could not find input device %s", name)
 	}
 
-	return &mic{
-		ctx:    context.Background(),
-		buffer: make(chan float64),
-		device: device,
-	}, nil
+	m := &mic{
+		ctx:        context.Background(),
+		device:     device,
+		buffer:     make(chan float64),
+		sampleRate: beep.SampleRate(device.DefaultSampleRate),
+	}
+
+	return m, nil
 }
 
 func (m *mic) Stream(samples [][2]float64) (int, bool) {
@@ -134,7 +139,7 @@ func (m *mic) Start(ctx context.Context) error {
 				Channels: 1,
 				Latency:  m.device.DefaultLowInputLatency,
 			},
-			SampleRate:      m.device.DefaultSampleRate,
+			SampleRate:      float64(m.sampleRate),
 			FramesPerBuffer: bufferSize,
 		},
 		func(in []float32) {
@@ -190,9 +195,17 @@ func (m *mic) Close() error {
 }
 
 func (m *mic) Format() beep.Format {
+	m.devicelock.Lock()
+	defer m.devicelock.Unlock()
 	return beep.Format{
-		SampleRate:  beep.SampleRate(m.device.DefaultSampleRate),
+		SampleRate:  m.sampleRate,
 		NumChannels: 1,
 		Precision:   3,
 	}
+}
+
+func (m *mic) SetSampleRate(rate beep.SampleRate) {
+	m.devicelock.Lock()
+	defer m.devicelock.Unlock()
+	m.sampleRate = rate
 }

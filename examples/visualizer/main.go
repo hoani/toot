@@ -31,6 +31,8 @@ func runAudio(p *tea.Program) error {
 	}
 	defer m.Close()
 
+	m.SetSampleRate(m.Format().SampleRate / 4)
+
 	a := toot.NewAnalyzer(m, int(m.Format().SampleRate), int(m.Format().SampleRate/4))
 
 	v := toot.NewVisualizer(100.0, 4000.0, 12)
